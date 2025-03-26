@@ -1,0 +1,17 @@
+{
+    "errors": {
+	"sigma": 0.0
+    },
+    "data": [
+	{
+	    "weight": 0.5,
+	    "mu": 10,
+	    "sigma": 2.5
+	},
+	{
+	    "weight": 0.5,
+	    "mu": 15,
+	    "sigma": 1.0
+	}
+    ]
+}
