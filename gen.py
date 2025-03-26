@@ -6,7 +6,7 @@ from pathlib import Path
 import random
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, eq=True)
 class Gaussian:
     mu: float = 0.0
     sd: float = 1.0
@@ -22,6 +22,12 @@ class Gaussian:
 class Data:
     errors: Gaussian
     data: list[Gaussian]
+
+
+@dataclass
+class Datum:
+    independent: float
+    dependent: float
 
 
 def read_params(raw: str) -> Data | None:
@@ -45,6 +51,17 @@ def sample(settings: Data, x: float) -> float:
     return sum(dist.sample(x) for dist in settings.data) + random.gauss(
         sigma=settings.errors.sd
     )
+
+def generate_data(settings) -> list[Datum]:
+    data = []
+    x = 0.0
+    while x <= 100.0:
+        data.append(Datum(
+            independent=x,
+            dependent=sample(settings, x)
+        ))
+        x += 0.1
+    return data
 
 
 if __name__ == "__main__":

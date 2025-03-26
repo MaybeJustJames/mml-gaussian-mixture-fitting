@@ -1,13 +1,14 @@
 import csv
 from dataclasses import dataclass
+from functools import cache
 import math
 from math import log2, sqrt
 from pathlib import Path
 
-from gen import Gaussian
+from gen import Datum, Gaussian
 
 
-@dataclass
+@dataclass(frozen=True, eq=True)
 class Model:
     components: list[Gaussian]
 
@@ -15,12 +16,7 @@ class Model:
         return sum(dist.sample(datum, debug) for dist in self.components)
 
 
-@dataclass
-class Datum:
-    independent: float
-    dependent: float
-
-
+@cache
 def logstar(n: int) -> float:
     assert n > 0
     norm_const = log2(2.865)
@@ -37,6 +33,7 @@ def logstar(n: int) -> float:
     return val + norm_const
 
 
+@cache
 def message_length_normal(datum: float, mu: float, sd: float, eps: float) -> float:
     # Pr = eps/[sqrt(2*pi)*sd] exp(-0.5*(x-mu)^2/sd^2)
     return (
@@ -46,6 +43,7 @@ def message_length_normal(datum: float, mu: float, sd: float, eps: float) -> flo
     )
 
 
+@cache
 def message_length_uniform(datum: float, low: float, high: float, eps: float) -> float:
     assert low <= datum <= high, f"{low=} {datum=} {high=}"
     # Pr = eps / (high - low)
@@ -79,13 +77,17 @@ def message_length_data(data: list[Datum], h: Model, debug=False) -> float:
 
     return ml
 
+
 def evaluate_model(data: list[Datum], h: Model, debug=False) -> float:
     return message_length_hypothesis(h) + message_length_data(data, h, debug)
+
 
 if __name__ == "__main__":
     with Path("out.csv").open() as data_handle:
         reader = csv.reader(data_handle)
-        in_data = [Datum(independent=float(row[0]), dependent=float(row[1])) for row in reader]
+        in_data = [
+            Datum(independent=float(row[0]), dependent=float(row[1])) for row in reader
+        ]
     model1 = Model(
         components=[
             Gaussian(mu=10, sd=2.5),

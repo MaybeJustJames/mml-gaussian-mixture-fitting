@@ -2,11 +2,11 @@ import math
 from pathlib import Path
 import random
 
-from gen import Gaussian, read_params, sample
-from mml import Datum, Model, evaluate_model
+from gen import Datum, Gaussian, read_params, sample
+from mml import Model, evaluate_model
 
 
-def _clamp(number: float, low: float, high: float) -> float:
+def clamp(number: float, low: float, high: float) -> float:
     return min(max(number, low), high)
 
 
@@ -21,7 +21,7 @@ def perturb_mu(m: Model) -> Model:
             )
             if idx != component_idx
             else Gaussian(
-                mu=_clamp(component.mu + random.choice([0.1, -0.1]), 0.0, 100.0),
+                mu=clamp(component.mu + random.choice([0.1, -0.1]), 0.0, 100.0),
                 sd=component.sd,
             )
             for idx, component in enumerate(m.components)
@@ -33,7 +33,7 @@ def perturb_all_mus(m: Model) -> Model:
     return Model(
         components=[
             Gaussian(
-                mu=_clamp(component.mu + random.choice([0.1, -0.1]), 0.0, 100.0),
+                mu=clamp(component.mu + random.choice([0.1, -0.1]), 0.0, 100.0),
                 sd=component.sd,
             )
             for component in m.components
@@ -53,7 +53,7 @@ def perturb_sd(m: Model) -> Model:
             if idx != component_idx
             else Gaussian(
                 mu=component.mu,
-                sd=_clamp(component.sd + random.choice([0.001, -0.001]), 0.001, 50.0),
+                sd=clamp(component.sd + random.choice([0.001, -0.001]), 0.001, 50.0),
             )
             for idx, component in enumerate(m.components)
         ]
@@ -66,11 +66,12 @@ def perturb_all_sds(m: Model) -> Model:
         components=[
             Gaussian(
                 mu=component.mu,
-                sd=_clamp(component.sd + random.choice([0.001, -0.001]), 0.001, 50.0),
+                sd=clamp(component.sd + random.choice([0.001, -0.001]), 0.001, 50.0),
             )
             for component in m.components
         ]
     )
+
 
 def remove_component(m: Model) -> Model:
     if len(m.components) == 1:
@@ -106,6 +107,7 @@ def perturb(m: Model) -> Model:
     )
     return perturb_fn(m)
 
+
 def accept(temperature: float, change: float) -> bool:
     """+ve change in ML is bad, -ve is good."""
     if change < 0:
@@ -116,19 +118,20 @@ def accept(temperature: float, change: float) -> bool:
 
 
 def optimize(t_max: float, t_min: float, data: list[Datum], factor: float) -> Model:
+    return optimize_with_seed(
+        t_max, t_min, data, factor, add_component(Model(components=[]))
+    )
+
+
+def optimize_with_seed(
+    t_max: float, t_min: float, data: list[Datum], factor: float, seed: Model
+) -> Model:
     temperature = t_max
-    candidate = add_component(Model(components=[]))
+    candidate = seed
     ml = evaluate_model(data, candidate)
-    sampled = 1
     while temperature > t_min:
         new_candidate = perturb(candidate)
-        sampled += 1
-        try:
-            new_ml = evaluate_model(data, new_candidate)
-        except AssertionError:
-            print(candidate, end="\n\n")
-            print(new_candidate)
-            raise
+        new_ml = evaluate_model(data, new_candidate)
         change = new_ml - ml
         if accept(temperature, change):
             ml = new_ml
@@ -136,18 +139,15 @@ def optimize(t_max: float, t_min: float, data: list[Datum], factor: float) -> Mo
 
         temperature = factor * temperature
 
-    print(f"{sampled=}")
     return candidate
+
 
 if __name__ == "__main__":
     settings = read_params(Path("data.json").read_text())
     data = []
     x = 0.0
     while x <= 100.0:
-        data.append(Datum(
-            independent=x,
-            dependent=sample(settings, x)
-        ))
+        data.append(Datum(independent=x, dependent=sample(settings, x)))
         x += 0.1
 
     result = optimize(5000.0, 0.01, data, 0.999)
