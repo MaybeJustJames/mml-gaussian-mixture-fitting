@@ -8,15 +8,14 @@ import random
 
 @dataclass(frozen=True)
 class Gaussian:
-    weight: float
-    mu: float
-    sigma: float
+    mu: float = 0.0
+    sd: float = 1.0
 
-    def sample(self, x) -> float:
-        a = 1.0 / (self.sigma * math.sqrt(2 * math.pi))
+    def sample(self, x, debug=False) -> float:
+        a = 1.0 / (self.sd * math.sqrt(2 * math.pi))
         b = (x - self.mu) ** 2
-        c = 2 * self.sigma**2.0
-        return self.weight * a * math.exp(-b / c)
+        c = 2 * self.sd**2.0
+        return a * math.exp(-b / c)
 
 
 @dataclass(frozen=True)
@@ -30,14 +29,12 @@ def read_params(raw: str) -> Data | None:
     return Data(
         errors=Gaussian(
             mu=result.get("errors", {}).get("mu", 0.0),
-            sigma=result.get("errors", {}).get("sigma", 1.0),
-            weight=result.get("errors", {}).get("weight", 1.0),
+            sd=result.get("errors", {}).get("sd", 1.0),
         ),
         data=[
             Gaussian(
                 mu=datum.get("mu", 0.0),
-                sigma=datum.get("sigma", 1.0),
-                weight=datum.get("weight", 1.0),
+                sd=datum.get("sd", 1.0),
             )
             for datum in result.get("data", [])
         ],
@@ -46,7 +43,7 @@ def read_params(raw: str) -> Data | None:
 
 def sample(settings: Data, x: float) -> float:
     return sum(dist.sample(x) for dist in settings.data) + random.gauss(
-        sigma=settings.errors.sigma
+        sigma=settings.errors.sd
     )
 
 
@@ -54,7 +51,7 @@ if __name__ == "__main__":
     settings = read_params(Path("data.json").read_text())
     with Path("out.csv").open(mode="w") as out:
         w = csv.writer(out)
-        x = 9.0
-        while x < 17:
+        x = 0.0
+        while x <= 100:
             w.writerow((x, sample(settings, x)))
-            x += 0.05
+            x += 0.1

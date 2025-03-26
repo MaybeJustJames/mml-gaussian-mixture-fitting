@@ -11,8 +11,8 @@ from gen import Gaussian
 class Model:
     components: list[Gaussian]
 
-    def sample(self, datum: float) -> float:
-        return sum(dist.sample(datum) for dist in self.components)
+    def sample(self, datum: float, debug=False) -> float:
+        return sum(dist.sample(datum, debug) for dist in self.components)
 
 
 @dataclass
@@ -47,7 +47,7 @@ def message_length_normal(datum: float, mu: float, sd: float, eps: float) -> flo
 
 
 def message_length_uniform(datum: float, low: float, high: float, eps: float) -> float:
-    assert low <= datum <= high
+    assert low <= datum <= high, f"{low=} {datum=} {high=}"
     # Pr = eps / (high - low)
     return log2(high - low) - log2(eps)
 
@@ -55,31 +55,32 @@ def message_length_uniform(datum: float, low: float, high: float, eps: float) ->
 def message_length_hypothesis(h: Model) -> float:
     ml = logstar(len(h.components))  # number of components
     # dumb: means are uniformally distributed [0, 100]
-    # sd are normally distributed about means with sd of 0.1
-    # eps is always 0.005
-    # weights are uniformally distributed [0, 1]
+    # sd are uniformally distributed [0.001, 5.0]
     # with some domain knowledge this can be way smarter
     for model in h.components:
         # mean
         ml += message_length_uniform(model.mu, 0, 100, 0.1)
         # sd
-        ml += message_length_uniform(model.sigma, 0.0, 5.0, 0.001)
-        # weight
-        ml += message_length_uniform(model.weight, 0, 1, 0.01)
+        ml += message_length_uniform(model.sd, 0.001, 50.0, 0.001)
 
     return ml
 
 
-def message_length_data(data: list[Datum], h: Model) -> float:
+def message_length_data(data: list[Datum], h: Model, debug=False) -> float:
     ml = logstar(len(data))  # length of the data
     for datum in data:
         mu = h.sample(datum.independent)
-        ml += message_length_normal(datum.dependent, mu, 0.05, 0.001)
+        if debug and abs(datum.independent - 10) < 0.005:
+            h.sample(datum.independent, True)
+            for c in h.components:
+                print(datum.independent, datum.dependent, c.sample(datum.independent))
+            print(f"{h=}\ndatum={datum.dependent}, {mu=}, delta={datum.dependent - mu}")
+        ml += message_length_normal(datum.dependent, mu, 0.001, 0.001)
 
     return ml
 
-def evaluate_model(data: list[Datum], h: Model) -> float:
-    return message_length_hypothesis(h) + message_length_data(data, h)
+def evaluate_model(data: list[Datum], h: Model, debug=False) -> float:
+    return message_length_hypothesis(h) + message_length_data(data, h, debug)
 
 if __name__ == "__main__":
     with Path("out.csv").open() as data_handle:
@@ -87,8 +88,8 @@ if __name__ == "__main__":
         in_data = [Datum(independent=float(row[0]), dependent=float(row[1])) for row in reader]
     model1 = Model(
         components=[
-            Gaussian(weight=0.5, mu=10, sigma=2.5),
-            Gaussian(weight=0.5, mu=15, sigma=1),
+            Gaussian(mu=10, sd=2.5),
+            Gaussian(mu=15, sd=1),
         ]
     )
     ml_h = message_length_hypothesis(model1)
@@ -97,8 +98,8 @@ if __name__ == "__main__":
 
     model2 = Model(
         components=[
-            Gaussian(weight=0.2, mu=10, sigma=0.1),
-            Gaussian(weight=0.8, mu=15, sigma=1.5),
+            Gaussian(mu=10, sd=0.1),
+            Gaussian(mu=15, sd=1.5),
         ]
     )
     ml_h = message_length_hypothesis(model2)
@@ -107,7 +108,7 @@ if __name__ == "__main__":
 
     model3 = Model(
         components=[
-            Gaussian(weight=1.0, mu=15, sigma=2.5),
+            Gaussian(mu=15, sd=2.5),
         ]
     )
     ml_h = message_length_hypothesis(model3)
