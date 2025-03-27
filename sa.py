@@ -154,4 +154,4 @@ if __name__ == "__main__":
     print(result, evaluate_model(data, result))
 
     print("Real data source:")
-    print(Model(settings.data), evaluate_model(data, Model(settings.data), debug=True))
+    print(Model(settings.data), evaluate_model(data, Model(settings.data)))

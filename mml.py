@@ -12,8 +12,8 @@ from gen import Datum, Gaussian
 class Model:
     components: list[Gaussian]
 
-    def sample(self, datum: float, debug=False) -> float:
-        return sum(dist.sample(datum, debug) for dist in self.components)
+    def sample(self, datum: float) -> float:
+        return sum(dist.sample(datum) for dist in self.components)
 
 
 @cache
@@ -53,7 +53,7 @@ def message_length_uniform(datum: float, low: float, high: float, eps: float) ->
 def message_length_hypothesis(h: Model) -> float:
     ml = logstar(len(h.components))  # number of components
     # dumb: means are uniformally distributed [0, 100]
-    # sd are uniformally distributed [0.001, 5.0]
+    # sd are uniformally distributed [0.001, 50.0]
     # with some domain knowledge this can be way smarter
     for model in h.components:
         # mean
@@ -64,22 +64,17 @@ def message_length_hypothesis(h: Model) -> float:
     return ml
 
 
-def message_length_data(data: list[Datum], h: Model, debug=False) -> float:
+def message_length_data(data: list[Datum], h: Model) -> float:
     ml = logstar(len(data))  # length of the data
     for datum in data:
         mu = h.sample(datum.independent)
-        if debug and abs(datum.independent - 10) < 0.005:
-            h.sample(datum.independent, True)
-            for c in h.components:
-                print(datum.independent, datum.dependent, c.sample(datum.independent))
-            print(f"{h=}\ndatum={datum.dependent}, {mu=}, delta={datum.dependent - mu}")
         ml += message_length_normal(datum.dependent, mu, 0.001, 0.001)
 
     return ml
 
 
-def evaluate_model(data: list[Datum], h: Model, debug=False) -> float:
-    return message_length_hypothesis(h) + message_length_data(data, h, debug)
+def evaluate_model(data: list[Datum], h: Model) -> float:
+    return message_length_hypothesis(h) + message_length_data(data, h)
 
 
 if __name__ == "__main__":
